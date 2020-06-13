@@ -37,7 +37,7 @@ def makeplot(rs, ps, outDir, class_name, iou_type):
                 ps_curve[k],
                 ps_curve[k + 1],
                 color=cs[k],
-                label=str(f'[{aps[k]:.3f}]' + types[k]))
+                label=str('[{:.3f}'.format(aps[k]) + ']' + types[k]))
         plt.xlabel('recall')
         plt.ylabel('precision')
         plt.xlim(0, 1.)
@@ -45,13 +45,14 @@ def makeplot(rs, ps, outDir, class_name, iou_type):
         plt.title(figure_tile)
         plt.legend()
         # plt.show()
-        fig.savefig(outDir + f'/{figure_tile}.png')
+        fig.savefig(outDir + '/{}.png'.format(figure_tile))
         plt.close(fig)
 
 
 def analyze_individual_category(k, cocoDt, cocoGt, catId, iou_type):
     nm = cocoGt.loadCats(catId)[0]
-    print(f'--------------analyzing {k + 1}-{nm["name"]}---------------')
+    print('--------------analyzing {}-{}---------------'.format(
+        k + 1, nm['name']))
     ps_ = {}
     dt = copy.deepcopy(cocoDt)
     nm = cocoGt.loadCats(catId)[0]
@@ -106,7 +107,7 @@ def analyze_results(res_file, ann_file, res_types, out_dir):
 
     directory = os.path.dirname(out_dir + '/')
     if not os.path.exists(directory):
-        print(f'-------------create {out_dir}-----------------')
+        print('-------------create {}-----------------'.format(out_dir))
         os.makedirs(directory)
 
     cocoGt = COCO(ann_file)
@@ -116,7 +117,8 @@ def analyze_results(res_file, ann_file, res_types, out_dir):
         res_out_dir = out_dir + '/' + res_type + '/'
         res_directory = os.path.dirname(res_out_dir)
         if not os.path.exists(res_directory):
-            print(f'-------------create {res_out_dir}-----------------')
+            print(
+                '-------------create {}-----------------'.format(res_out_dir))
             os.makedirs(res_directory)
         iou_type = res_type
         cocoEval = COCOeval(
@@ -136,7 +138,8 @@ def analyze_results(res_file, ann_file, res_types, out_dir):
             analyze_results = pool.starmap(analyze_individual_category, args)
         for k, catId in enumerate(catIds):
             nm = cocoGt.loadCats(catId)[0]
-            print(f'--------------saving {k + 1}-{nm["name"]}---------------')
+            print('--------------saving {}-{}---------------'.format(
+                k + 1, nm['name']))
             analyze_result = analyze_results[k]
             assert k == analyze_result[0]
             ps_supercategory = analyze_result[1]['ps_supercategory']

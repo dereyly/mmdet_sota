@@ -1,11 +1,10 @@
 import collections
 
-from mmcv.utils import build_from_cfg
+from mmdet.utils import build_from_cfg
+from ..registry import PIPELINES
 
-from ..builder import PIPELINES
 
-
-@PIPELINES.register_module()
+@PIPELINES.register_module
 class Compose(object):
 
     def __init__(self, transforms):
@@ -31,6 +30,6 @@ class Compose(object):
         format_string = self.__class__.__name__ + '('
         for t in self.transforms:
             format_string += '\n'
-            format_string += f'    {t}'
+            format_string += '    {0}'.format(t)
         format_string += '\n)'
         return format_string

@@ -125,7 +125,7 @@ def print_model_with_flops(model, units='GMac', precision=3, ost=sys.stdout):
         return ', '.join([
             flops_to_string(
                 accumulated_flops_cost, units=units, precision=precision),
-            f'{accumulated_flops_cost / total_flops:.3%} MACs',
+            '{:.3%} MACs'.format(accumulated_flops_cost / total_flops),
             self.original_extra_repr()
         ])
 

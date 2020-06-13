@@ -8,13 +8,14 @@ import numpy as np
 def print_coco_results(results):
 
     def _print(result, ap=1, iouThr=None, areaRng='all', maxDets=100):
+        iStr = ' {:<18} {} @[ IoU={:<9} | \
+        area={:>6s} | maxDets={:>3d} ] = {:0.3f}'
+
         titleStr = 'Average Precision' if ap == 1 else 'Average Recall'
         typeStr = '(AP)' if ap == 1 else '(AR)'
-        iouStr = '0.50:0.95' \
-            if iouThr is None else f'{iouThr:0.2f}'
-        iStr = f' {titleStr:<18} {typeStr} @[ IoU={iouStr:<9} | '
-        iStr += f'area={areaRng:>6s} | maxDets={maxDets:>3d} ] = {result:0.3f}'
-        print(iStr)
+        iouStr = '{:0.2f}:{:0.2f}'.format(.5, .95) \
+            if iouThr is None else '{:0.2f}'.format(iouThr)
+        print(iStr.format(titleStr, typeStr, iouStr, areaRng, maxDets, result))
 
     stats = np.zeros((12, ))
     stats[0] = _print(results[0], 1)
@@ -80,30 +81,33 @@ def get_coco_style_results(filename,
         mPC = np.mean(results[:, 1:, :], axis=(0, 1))
     rPC = mPC / P
 
-    print(f'\nmodel: {osp.basename(filename)}')
+    print('\nmodel: {}'.format(osp.basename(filename)))
     if metric is None:
         if 'P' in prints:
-            print(f'Performance on Clean Data [P] ({task})')
+            print('Performance on Clean Data [P] ({})'.format(task))
             print_coco_results(P)
         if 'mPC' in prints:
-            print(f'Mean Performance under Corruption [mPC] ({task})')
+            print('Mean Performance under Corruption [mPC] ({})'.format(task))
             print_coco_results(mPC)
         if 'rPC' in prints:
-            print(f'Realtive Performance under Corruption [rPC] ({task})')
+            print('Realtive Performance under Corruption [rPC] ({})'.format(
+                task))
             print_coco_results(rPC)
     else:
         if 'P' in prints:
-            print(f'Performance on Clean Data [P] ({task})')
+            print('Performance on Clean Data [P] ({})'.format(task))
             for metric_i, metric_name in enumerate(metrics):
-                print(f'{metric_name:5} =  {P[metric_i]:0.3f}')
+                print('{:5} =  {:0.3f}'.format(metric_name, P[metric_i]))
         if 'mPC' in prints:
-            print(f'Mean Performance under Corruption [mPC] ({task})')
+            print('Mean Performance under Corruption [mPC] ({})'.format(task))
             for metric_i, metric_name in enumerate(metrics):
-                print(f'{metric_name:5} =  {mPC[metric_i]:0.3f}')
+                print('{:5} =  {:0.3f}'.format(metric_name, mPC[metric_i]))
         if 'rPC' in prints:
-            print(f'Relative Performance under Corruption [rPC] ({task})')
+            print('Relative Performance under Corruption [rPC] ({})'.format(
+                task))
             for metric_i, metric_name in enumerate(metrics):
-                print(f'{metric_name:5} => {rPC[metric_i] * 100:0.1f} %')
+                print('{:5} => {:0.1f} %'.format(metric_name,
+                                                 rPC[metric_i] * 100))
 
     return results
 
@@ -139,15 +143,17 @@ def get_voc_style_results(filename, prints='mPC', aggregate='benchmark'):
         mPC = np.mean(results[:, 1:, :], axis=(0, 1))
     rPC = mPC / P
 
-    print(f'\nmodel: {osp.basename(filename)}')
+    print('\nmodel: {}'.format(osp.basename(filename)))
     if 'P' in prints:
-        print(f'Performance on Clean Data [P] in AP50 = {np.mean(P):0.3f}')
+        print('{:48} = {:0.3f}'.format('Performance on Clean Data [P] in AP50',
+                                       np.mean(P)))
     if 'mPC' in prints:
-        print('Mean Performance under Corruption [mPC] in AP50 = '
-              f'{np.mean(mPC):0.3f}')
+        print('{:48} = {:0.3f}'.format(
+            'Mean Performance under Corruption [mPC] in AP50', np.mean(mPC)))
     if 'rPC' in prints:
-        print('Realtive Performance under Corruption [rPC] in % = '
-              f'{np.mean(rPC) * 100:0.1f}')
+        print('{:48} = {:0.1f}'.format(
+            'Realtive Performance under Corruption [rPC] in %',
+            np.mean(rPC) * 100))
 
     return np.mean(results, axis=2, keepdims=True)
 

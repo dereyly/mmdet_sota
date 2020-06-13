@@ -27,7 +27,7 @@ def collect_env():
             try:
                 nvcc = osp.join(CUDA_HOME, 'bin/nvcc')
                 nvcc = subprocess.check_output(
-                    f'"{nvcc}" -V | tail -n1', shell=True)
+                    '"{}" -V | tail -n1'.format(nvcc), shell=True)
                 nvcc = nvcc.decode('utf-8').strip()
             except subprocess.SubprocessError:
                 nvcc = 'Not Available'
@@ -60,4 +60,4 @@ def collect_env():
 
 if __name__ == '__main__':
     for name, val in collect_env().items():
-        print(f'{name}: {val}')
+        print('{}: {}'.format(name, val))

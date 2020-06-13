@@ -1,13 +1,14 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from mmcv.cnn import ConvModule, caffe2_xavier_init
+from mmcv.cnn.weight_init import caffe2_xavier_init
 from torch.utils.checkpoint import checkpoint
 
-from ..builder import NECKS
+from ..registry import NECKS
+from ..utils import ConvModule
 
 
-@NECKS.register_module()
+@NECKS.register_module
 class HRFPN(nn.Module):
     """HRFPN (High Resolution Feature Pyrmamids)
 
@@ -50,7 +51,7 @@ class HRFPN(nn.Module):
             out_channels,
             kernel_size=1,
             conv_cfg=self.conv_cfg,
-            act_cfg=None)
+            activation=None)
 
         self.fpn_convs = nn.ModuleList()
         for i in range(self.num_outs):
@@ -62,7 +63,7 @@ class HRFPN(nn.Module):
                     padding=1,
                     stride=stride,
                     conv_cfg=self.conv_cfg,
-                    act_cfg=None))
+                    activation=None))
 
         if pooling_type == 'MAX':
             self.pooling = F.max_pool2d

@@ -110,7 +110,7 @@ def get_classes(dataset):
         if dataset in alias2name:
             labels = eval(alias2name[dataset] + '_classes()')
         else:
-            raise ValueError(f'Unrecognized dataset: {dataset}')
+            raise ValueError('Unrecognized dataset: {}'.format(dataset))
     else:
-        raise TypeError(f'dataset must a str, but got {type(dataset)}')
+        raise TypeError('dataset must a str, but got {}'.format(type(dataset)))
     return labels

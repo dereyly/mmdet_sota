@@ -1,8 +1,7 @@
-from ..builder import BBOX_SAMPLERS, build_sampler
+from ..assign_sampling import build_sampler
 from .base_sampler import BaseSampler
 
 
-@BBOX_SAMPLERS.register_module()
 class CombinedSampler(BaseSampler):
 
     def __init__(self, pos_sampler, neg_sampler, **kwargs):

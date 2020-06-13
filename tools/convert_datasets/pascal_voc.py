@@ -7,7 +7,7 @@ import numpy as np
 
 from mmdet.core import voc_classes
 
-label_ids = {name: i for i, name in enumerate(voc_classes())}
+label_ids = {name: i + 1 for i, name in enumerate(voc_classes())}
 
 
 def parse_xml(args):
@@ -70,18 +70,20 @@ def cvt_annotations(devkit_path, years, split, out_file):
     annotations = []
     for year in years:
         filelist = osp.join(devkit_path,
-                            f'VOC{year}/ImageSets/Main/{split}.txt')
+                            'VOC{}/ImageSets/Main/{}.txt'.format(year, split))
         if not osp.isfile(filelist):
-            print(f'filelist does not exist: {filelist}, '
-                  f'skip voc{year} {split}')
+            print('filelist does not exist: {}, skip voc{} {}'.format(
+                filelist, year, split))
             return
         img_names = mmcv.list_from_file(filelist)
         xml_paths = [
-            osp.join(devkit_path, f'VOC{year}/Annotations/{img_name}.xml')
+            osp.join(devkit_path,
+                     'VOC{}/Annotations/{}.xml'.format(year, img_name))
             for img_name in img_names
         ]
         img_paths = [
-            f'VOC{year}/JPEGImages/{img_name}.jpg' for img_name in img_names
+            'VOC{}/JPEGImages/{}.jpg'.format(year, img_name)
+            for img_name in img_names
         ]
         part_annotations = mmcv.track_progress(parse_xml,
                                                list(zip(xml_paths, img_paths)))
@@ -113,8 +115,8 @@ def main():
     if '2007' in years and '2012' in years:
         years.append(['2007', '2012'])
     if not years:
-        raise IOError(f'The devkit path {devkit_path} contains neither '
-                      '"VOC2007" nor "VOC2012" subfolder')
+        raise IOError('The devkit path {} contains neither "VOC2007" nor '
+                      '"VOC2012" subfolder'.format(devkit_path))
     for year in years:
         if year == '2007':
             prefix = 'voc07'
@@ -124,12 +126,12 @@ def main():
             prefix = 'voc0712'
         for split in ['train', 'val', 'trainval']:
             dataset_name = prefix + '_' + split
-            print(f'processing {dataset_name} ...')
+            print('processing {} ...'.format(dataset_name))
             cvt_annotations(devkit_path, year, split,
                             osp.join(out_dir, dataset_name + '.pkl'))
         if not isinstance(year, list):
             dataset_name = prefix + '_test'
-            print(f'processing {dataset_name} ...')
+            print('processing {} ...'.format(dataset_name))
             cvt_annotations(devkit_path, year, 'test',
                             osp.join(out_dir, dataset_name + '.pkl'))
     print('Done!')

@@ -1,12 +1,13 @@
 import mmcv
 
 from mmdet.core import bbox_mapping, tensor2imgs
-from ..builder import DETECTORS, build_backbone, build_head, build_neck
+from .. import builder
+from ..registry import DETECTORS
 from .base import BaseDetector
 from .test_mixins import RPNTestMixin
 
 
-@DETECTORS.register_module()
+@DETECTORS.register_module
 class RPN(BaseDetector, RPNTestMixin):
 
     def __init__(self,
@@ -17,12 +18,9 @@ class RPN(BaseDetector, RPNTestMixin):
                  test_cfg,
                  pretrained=None):
         super(RPN, self).__init__()
-        self.backbone = build_backbone(backbone)
-        self.neck = build_neck(neck) if neck is not None else None
-        rpn_train_cfg = train_cfg.rpn if train_cfg is not None else None
-        rpn_head.update(train_cfg=rpn_train_cfg)
-        rpn_head.update(test_cfg=test_cfg.rpn)
-        self.rpn_head = build_head(rpn_head)
+        self.backbone = builder.build_backbone(backbone)
+        self.neck = builder.build_neck(neck) if neck is not None else None
+        self.rpn_head = builder.build_head(rpn_head)
         self.train_cfg = train_cfg
         self.test_cfg = test_cfg
         self.init_weights(pretrained=pretrained)
@@ -47,44 +45,26 @@ class RPN(BaseDetector, RPNTestMixin):
 
     def forward_train(self,
                       img,
-                      img_metas,
+                      img_meta,
                       gt_bboxes=None,
                       gt_bboxes_ignore=None):
-        """
-        Args:
-            img (Tensor): Input images of shape (N, C, H, W).
-                Typically these should be mean centered and std scaled.
-            img_metas (list[dict]): A List of image info dict where each dict
-                has: 'img_shape', 'scale_factor', 'flip', and may also contain
-                'filename', 'ori_shape', 'pad_shape', and 'img_norm_cfg'.
-                For details on the values of these keys see
-                :class:`mmdet.datasets.pipelines.Collect`.
-            gt_bboxes (list[Tensor]): Each item are the truth boxes for each
-                image in [tl_x, tl_y, br_x, br_y] format.
-            gt_bboxes_ignore (None | list[Tensor]): Specify which bounding
-                boxes can be ignored when computing the loss.
-
-        Returns:
-            dict[str, Tensor]: A dictionary of loss components.
-        """
         if self.train_cfg.rpn.get('debug', False):
             self.rpn_head.debug_imgs = tensor2imgs(img)
 
         x = self.extract_feat(img)
         rpn_outs = self.rpn_head(x)
 
-        rpn_loss_inputs = rpn_outs + (gt_bboxes, img_metas)
+        rpn_loss_inputs = rpn_outs + (gt_bboxes, img_meta, self.train_cfg.rpn)
         losses = self.rpn_head.loss(
             *rpn_loss_inputs, gt_bboxes_ignore=gt_bboxes_ignore)
         return losses
 
-    def simple_test(self, img, img_metas, rescale=False):
+    def simple_test(self, img, img_meta, rescale=False):
         x = self.extract_feat(img)
-        proposal_list = self.simple_test_rpn(x, img_metas)
+        proposal_list = self.simple_test_rpn(x, img_meta, self.test_cfg.rpn)
         if rescale:
-            for proposals, meta in zip(proposal_list, img_metas):
-                proposals[:, :4] /= proposals.new_tensor(meta['scale_factor'])
-
+            for proposals, meta in zip(proposal_list, img_meta):
+                proposals[:, :4] /= meta['scale_factor']
         # TODO: remove this restriction
         return proposal_list[0].cpu().numpy()
 
@@ -96,10 +76,8 @@ class RPN(BaseDetector, RPNTestMixin):
                 img_shape = img_meta['img_shape']
                 scale_factor = img_meta['scale_factor']
                 flip = img_meta['flip']
-                flip_direction = img_meta['flip_direction']
                 proposals[:, :4] = bbox_mapping(proposals[:, :4], img_shape,
-                                                scale_factor, flip,
-                                                flip_direction)
+                                                scale_factor, flip)
         # TODO: remove this restriction
         return proposal_list[0].cpu().numpy()
 
@@ -110,7 +88,7 @@ class RPN(BaseDetector, RPNTestMixin):
         batch size.
         """
         img_tensor = data['img'][0]
-        img_metas = data['img_metas'][0].data[0]
+        img_metas = data['img_meta'][0].data[0]
         imgs = tensor2imgs(img_tensor, **img_metas[0]['img_norm_cfg'])
         assert len(imgs) == len(img_metas)
         for img, img_meta in zip(imgs, img_metas):

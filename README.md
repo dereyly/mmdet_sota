@@ -1,3 +1,78 @@
+# Res2Net for object detection and instance segmentation based on mmdetection.
+
+## Introduction
+
+We propose a novel building block for CNNs, namely Res2Net, by constructing hierarchical residual-like connections within one single residual block. The Res2Net represents multi-scale features at a granular level and increases the range of receptive fields for each network layer.
+
+|    Backbone     |Params. | GFLOPs  | top-1 err. | top-5 err. |
+| :-------------: |:----:  | :-----: | :--------: | :--------: |
+| ResNet-101      |44.6 M  | 7.8     |  22.63     |  6.44      |
+| ResNeXt-101-64x4d |83.5M | 15.5    |  20.40     |  -         |
+| HRNetV2p-W48    | 77.5M  | 16.1    |  20.70     |  5.50      |
+| Res2Net-101     | 45.2M  | 8.3     |  18.77     |  4.64      |
+
+Compared with other backbone networks, Res2Net requires fewer parameters and FLOPs.
+
+**Note:**
+- GFLOPs for classification are calculated with image size (224x224).
+
+
+## Detection and segmentation Results
+
+
+### Faster R-CNN
+
+|    Backbone     | Params. | GFLOPs | box AP |
+| :-------------: | :----:  | :----: | :----: |
+| R-101-FPN       | 60.52M  | 283.14 |  39.4  |
+| X-101-64x4d-FPN | 99.25M  | 440.36 |  41.3  |
+| HRNetV2p-W48    | 83.36M  | 459.66 |  41.5  |
+| Res2Net-101     | 61.18M  | 293.68 |  42.3  |
+
+### Mask R-CNN
+|    Backbone     | Params. | GFLOPs | box AP | mask AP |
+| :-------------: | :----:  | :----: | :----: | :----:  |
+| R-101-FPN       | 63.17M  | 351.65 |  40.3  |  36.5   |
+| X-101-64x4d-FPN | 101.9M  | 508.87 |  42.0  |  37.7   |
+| HRNetV2p-W48    | 86.01M  | 528.17 |  42.9  |  38.3   |
+| Res2Net-101     | 63.83M  | 362.18 |  43.3  |  38.6   |
+
+
+### Cascade R-CNN
+
+|    Backbone     | Params. | GFLOPs | box AP |
+| :-------------: | :----:  | :----: | :----: |
+| R-101-FPN       | 88.16M  | 310.78 |  42.5  |
+| X-101-64x4d-FPN | 126.89M | 468.00 |  44.7  |
+| HRNetV2p-W48    | 111.00M | 487.30 |  44.6  |
+| Res2Net-101     | 88.82M  | 321.32 |  45.5  |
+
+
+### Cascade Mask R-CNN
+
+|    Backbone     | Params.  | GFLOPs | box AP | mask AP |
+| :-------------: | :----:   | :----: | :----: | :----:  |
+| R-101-FPN       | 96.09M   | 516.30 |  43.3  |  37.6   |
+| X-101-64x4d-FPN | 134.82M  | 673.52 |  45.7  |  39.4   |
+| HRNetV2p-W48    | 118.93M  | 692.82 |  46.0  |  39.5   |
+| Res2Net-101     | 96.75M   | 526.84 |  46.1  |  39.4   |
+
+### Hybrid Task Cascade (HTC)
+
+|    Backbone     | Params.  | GFLOPs | box AP | mask AP |
+| :-------------: | :-----:  | :----: | :----: | :----:  |
+| R-101-FPN       | 99.03M   | 563.76 |  44.9  |  39.4   |
+| X-101-64x4d-FPN | 137.75M  | 720.98 |  46.9  |  40.8   |
+| HRNetV2p-W48    | 121.87M  | 740.28 |  47.0  |  41.0   |
+| Res2Net-101     | 99.69M   | 574.30 |  47.5  |  41.3   |
+
+**Note:**
+
+- GFLOPs are calculated with image size (1280, 800).
+- All detection methods in this page use pytorch style. Lr schd is 2x for Faster R-CNN and Mask R-CNN, and 20e for others. 
+- Res2Net ImageNet pretrained models are in [Res2Net-PretrainedModels](https://github.com/Res2Net/Res2Net-PretrainedModels).
+- More applications of Res2Net are in [Res2Net-Github](https://github.com/Res2Net/).
+
 # MMDetection
 
 **News**: We released the technical report on [ArXiv](https://arxiv.org/abs/1906.07155).
@@ -6,11 +81,10 @@ Documentation: https://mmdetection.readthedocs.io/
 
 ## Introduction
 
-The master branch works with **PyTorch 1.3 to 1.5**.
-The old v1.x branch works with PyTorch 1.1 to 1.4, but v2.0 is strongly recommended for faster speed, higher performance, better design and more friendly usage.
+The master branch works with **PyTorch 1.1 to 1.4**.
 
-MMDetection is an open source object detection toolbox based on PyTorch. It is
-a part of the OpenMMLab project developed by [Multimedia Laboratory, CUHK](http://mmlab.ie.cuhk.edu.hk/).
+mmdetection is an open source object detection toolbox based on PyTorch. It is
+a part of the open-mmlab project developed by [Multimedia Laboratory, CUHK](http://mmlab.ie.cuhk.edu.hk/).
 
 ![demo image](demo/coco_test_12510.jpg)
 
@@ -26,7 +100,7 @@ a part of the OpenMMLab project developed by [Multimedia Laboratory, CUHK](http:
 
 - **High efficiency**
 
-  All basic bbox and mask operations run on GPUs. The training speed is faster than or comparable to other codebases, including [Detectron2](https://github.com/facebookresearch/detectron2), [maskrcnn-benchmark](https://github.com/facebookresearch/maskrcnn-benchmark) and [SimpleDet](https://github.com/TuSimple/simpledet).
+  All basic bbox and mask operations run on GPUs now. The training speed is faster than or comparable to other codebases, including [Detectron](https://github.com/facebookresearch/Detectron), [maskrcnn-benchmark](https://github.com/facebookresearch/maskrcnn-benchmark) and [SimpleDet](https://github.com/TuSimple/simpledet).
 
 - **State of the art**
 
@@ -40,66 +114,59 @@ This project is released under the [Apache 2.0 license](LICENSE).
 
 ## Changelog
 
-v2.1.0 was released in 8/6/2020.
-Please refer to [changelog.md](docs/changelog.md) for details and release history.
-A comparison between v1.x and v2.0 codebases can be found in [compatibility.md](docs/compatibility.md).
+v1.1.0 was released in 24/2/2020.
+Please refer to [CHANGELOG.md](docs/CHANGELOG.md) for details and release history.
 
 ## Benchmark and model zoo
 
 Supported methods and backbones are shown in the below table.
-Results and models are available in the [model zoo](docs/model_zoo.md).
+Results and models are available in the [Model zoo](docs/MODEL_ZOO.md).
 
-|                    | ResNet   | ResNeXt  | SENet    | VGG      | HRNet | RegNetX | Res2Net |
-|--------------------|:--------:|:--------:|:--------:|:--------:|:-----:|:--------:|:-----:|
-| RPN                | ✓        | ✓        | ☐        | ✗        | ✓     | ☐        | ☐     |
-| Fast R-CNN         | ✓        | ✓        | ☐        | ✗        | ✓     | ☐        | ☐     |
-| Faster R-CNN       | ✓        | ✓        | ☐        | ✗        | ✓     | ✓        | ✓     |
-| Mask R-CNN         | ✓        | ✓        | ☐        | ✗        | ✓     | ✓        | ✓     |
-| Cascade R-CNN      | ✓        | ✓        | ☐        | ✗        | ✓     | ☐        | ✓     |
-| Cascade Mask R-CNN | ✓        | ✓        | ☐        | ✗        | ✓     | ☐        | ✓     |
-| SSD                | ✗        | ✗        | ✗        | ✓        | ✗     | ✗        | ✗     |
-| RetinaNet          | ✓        | ✓        | ☐        | ✗        | ✓     | ✓        | ☐     |
-| GHM                | ✓        | ✓        | ☐        | ✗        | ✓     | ☐        | ☐     |
-| Mask Scoring R-CNN | ✓        | ✓        | ☐        | ✗        | ✓     | ☐        | ☐     |
-| Double-Head R-CNN  | ✓        | ✓        | ☐        | ✗        | ✓     | ☐        | ☐     |
-| Grid R-CNN (Plus)  | ✓        | ✓        | ☐        | ✗        | ✓     | ☐        | ☐     |
-| Hybrid Task Cascade| ✓        | ✓        | ☐        | ✗        | ✓     | ☐        | ✓     |
-| Libra R-CNN        | ✓        | ✓        | ☐        | ✗        | ✓     | ☐        | ☐     |
-| Guided Anchoring   | ✓        | ✓        | ☐        | ✗        | ✓     | ☐        | ☐     |
-| FCOS               | ✓        | ✓        | ☐        | ✗        | ✓     | ☐        | ☐     |
-| RepPoints          | ✓        | ✓        | ☐        | ✗        | ✓     | ☐        | ☐     |
-| Foveabox           | ✓        | ✓        | ☐        | ✗        | ✓     | ☐        | ☐     |
-| FreeAnchor         | ✓        | ✓        | ☐        | ✗        | ✓     | ☐        | ☐     |
-| NAS-FPN            | ✓        | ✓        | ☐        | ✗        | ✓     | ☐        | ☐     |
-| ATSS               | ✓        | ✓        | ☐        | ✗        | ✓     | ☐        | ☐     |
-| FSAF               | ✓        | ✓        | ☐        | ✗        | ✓     | ☐        | ☐     |
-| PAFPN              | ✓        | ✓        | ☐        | ✗        | ✓     | ☐        | ☐     |
-| NAS-FCOS           | ✓        | ✓        | ☐        | ✗        | ✓     | ☐        | ☐     |
-| PISA               | ✓        | ✓        | ☐        | ✗        | ✓     | ☐        | ☐     |
+|                    | ResNet   | ResNeXt  | SENet    | VGG      | HRNet | Res2Net |
+|--------------------|:--------:|:--------:|:--------:|:--------:|:-----:|:-------:|
+| RPN                | ✓        | ✓        | ☐        | ✗        | ✓     | ✓     |
+| Fast R-CNN         | ✓        | ✓        | ☐        | ✗        | ✓     | ✓     |
+| Faster R-CNN       | ✓        | ✓        | ☐        | ✗        | ✓     | ✓     |
+| Mask R-CNN         | ✓        | ✓        | ☐        | ✗        | ✓     | ✓     |
+| Cascade R-CNN      | ✓        | ✓        | ☐        | ✗        | ✓     | ✓     |
+| Cascade Mask R-CNN | ✓        | ✓        | ☐        | ✗        | ✓     | ✓     |
+| SSD                | ✗        | ✗        | ✗        | ✓        | ✗     | ✗     |
+| RetinaNet          | ✓        | ✓        | ☐        | ✗        | ✓     | ✓     |
+| GHM                | ✓        | ✓        | ☐        | ✗        | ✓     | ✓     |
+| Mask Scoring R-CNN | ✓        | ✓        | ☐        | ✗        | ✓     | ✓     |
+| Double-Head R-CNN  | ✓        | ✓        | ☐        | ✗        | ✓     | ✓     |
+| Grid R-CNN (Plus)  | ✓        | ✓        | ☐        | ✗        | ✓     | ✓     |
+| Hybrid Task Cascade| ✓        | ✓        | ☐        | ✗        | ✓     | ✓     |
+| Libra R-CNN        | ✓        | ✓        | ☐        | ✗        | ✓     | ✓     |
+| Guided Anchoring   | ✓        | ✓        | ☐        | ✗        | ✓     | ✓     |
+| FCOS               | ✓        | ✓        | ☐        | ✗        | ✓     | ✓     |
+| RepPoints          | ✓        | ✓        | ☐        | ✗        | ✓     | ✓     |
+| Foveabox           | ✓        | ✓        | ☐        | ✗        | ✓     | ✓     |
+| FreeAnchor         | ✓        | ✓        | ☐        | ✗        | ✓     | ✓     |
+| NAS-FPN            | ✓        | ✓        | ☐        | ✗        | ✓     | ✓     |
+| ATSS               | ✓        | ✓        | ☐        | ✗        | ✓     | ✓     |
 
 Other features
 - [x] [CARAFE](configs/carafe/README.md)
 - [x] [DCNv2](configs/dcn/README.md)
 - [x] [Group Normalization](configs/gn/README.md)
 - [x] [Weight Standardization](configs/gn+ws/README.md)
-- [x] [OHEM](configs/faster_rcnn/faster_rcnn_r50_fpn_ohem_1x_coco.py)
-- [x] [Soft-NMS](configs/faster_rcnn/faster_rcnn_r50_fpn_soft_nms_1x_coco.py)
+- [x] [OHEM](configs/faster_rcnn_ohem_r50_fpn_1x.py)
+- [x] Soft-NMS
 - [x] [Generalized Attention](configs/empirical_attention/README.md)
 - [x] [GCNet](configs/gcnet/README.md)
-- [x] [Mixed Precision (FP16) Training](configs/fp16/README.md)
+- [x] [Mixed Precision (FP16) Training](configs/fp16)
 - [x] [InstaBoost](configs/instaboost/README.md)
-- [x] [GRoIE](configs/groie/README.md)
 
-Some other methods are also supported in [projects using MMDetection](./docs/projects.md).
 
 ## Installation
 
-Please refer to [install.md](docs/install.md) for installation and dataset preparation.
+Please refer to [INSTALL.md](docs/INSTALL.md) for installation and dataset preparation.
 
 
 ## Get Started
 
-Please see [getting_started.md](docs/getting_started.md) for the basic usage of MMDetection. There are also tutorials for [finetuning models](docs/tutorials/finetune.md), [adding new dataset](docs/tutorials/new_dataset.md), [designing data pipeline](docs/tutorials/data_pipeline.md), and [adding new modules](docs/tutorials/new_modules.md).
+Please see [GETTING_STARTED.md](docs/GETTING_STARTED.md) for the basic usage of MMDetection.
 
 ## Contributing
 

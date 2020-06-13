@@ -3,11 +3,11 @@ import xml.etree.ElementTree as ET
 
 import mmcv
 
-from .builder import DATASETS
+from .registry import DATASETS
 from .xml_style import XMLDataset
 
 
-@DATASETS.register_module()
+@DATASETS.register_module
 class WIDERFaceDataset(XMLDataset):
     """
     Reader for the WIDER Face dataset in PASCAL VOC format.
@@ -20,23 +20,23 @@ class WIDERFaceDataset(XMLDataset):
         super(WIDERFaceDataset, self).__init__(**kwargs)
 
     def load_annotations(self, ann_file):
-        data_infos = []
+        img_infos = []
         img_ids = mmcv.list_from_file(ann_file)
         for img_id in img_ids:
-            filename = f'{img_id}.jpg'
+            filename = '{}.jpg'.format(img_id)
             xml_path = osp.join(self.img_prefix, 'Annotations',
-                                f'{img_id}.xml')
+                                '{}.xml'.format(img_id))
             tree = ET.parse(xml_path)
             root = tree.getroot()
             size = root.find('size')
             width = int(size.find('width').text)
             height = int(size.find('height').text)
             folder = root.find('folder').text
-            data_infos.append(
+            img_infos.append(
                 dict(
                     id=img_id,
                     filename=osp.join(folder, filename),
                     width=width,
                     height=height))
 
-        return data_infos
+        return img_infos
