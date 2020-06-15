@@ -64,7 +64,7 @@ python tools/test.py configs/pascal_voc/faster_rcnn_r50_fpn_1x_voc.py \
 ```shell
 ./tools/dist_test.sh configs/mask_rcnn_r50_fpn_1x.py \
     checkpoints/mask_rcnn_r50_fpn_1x_20181010-069fa190.pth \
-    8 --format-only --options "jsonfile_prefix=./mask_rcnn_test-dev_results"
+    8 --format_only --options "jsonfile_prefix=./mask_rcnn_test-dev_results"
 ```
 
 You will get two json files `mask_rcnn_test-dev_results.bbox.json` and `mask_rcnn_test-dev_results.segm.json`.
@@ -74,7 +74,7 @@ You will get two json files `mask_rcnn_test-dev_results.bbox.json` and `mask_rcn
 ```shell
 ./tools/dist_test.sh configs/cityscapes/mask_rcnn_r50_fpn_1x_cityscapes.py \
     checkpoints/mask_rcnn_r50_fpn_1x_cityscapes_20200227-afe51d5a.pth \
-    8  --format_only --options "outfile_prefix=./mask_rcnn_cityscapes_test_results"
+    8  --format_only --options "txtfile_prefix=./mask_rcnn_cityscapes_test_results"
 ```
 
 The generated png and txt would be under `./mask_rcnn_cityscapes_test_results` directory.
@@ -188,7 +188,7 @@ According to the [Linear Scaling Rule](https://arxiv.org/abs/1706.02677), you ne
 ### Train with a single GPU
 
 ```shell
-python tools/train.py ${CONFIG_FILE}
+python tools/train.py ${CONFIG_FILE} [optional arguments]
 ```
 
 If you want to specify the working directory in the command, you can add an argument `--work_dir ${YOUR_WORK_DIR}`.
@@ -358,6 +358,15 @@ The final output filename will be `faster_rcnn_r50_fpn_1x_20190801-{hash id}.pth
 
 Please refer to [ROBUSTNESS_BENCHMARKING.md](ROBUSTNESS_BENCHMARKING.md).
 
+### Convert to ONNX (experimental)
+
+We provide a script to convert model to [ONNX](https://github.com/onnx/onnx) format. The converted model could be visualized by tools like [Netron](https://github.com/lutzroeder/netron).
+
+```shell
+python tools/pytorch2onnx.py ${CONFIG_FILE} ${CHECKPOINT_FILE} --out ${ONNX_FILE} [--shape ${INPUT_SHAPE}]
+```
+
+**Note**: This tool is still experimental. Customized operators are not supported for now. We set `use_torchvision=True` on-the-fly for `RoIPool` and `RoIAlign`.
 
 ## How-to
 

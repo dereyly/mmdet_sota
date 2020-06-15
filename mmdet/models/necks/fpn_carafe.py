@@ -1,9 +1,9 @@
 import torch.nn as nn
 from mmcv.cnn import xavier_init
 
+from mmdet.ops import ConvModule, build_upsample_layer
 from mmdet.ops.carafe import CARAFEPack
 from ..registry import NECKS
-from ..utils import ConvModule, build_upsample_layer
 
 
 @NECKS.register_module
@@ -38,7 +38,8 @@ class FPN_CARAFE(nn.Module):
                  start_level=0,
                  end_level=-1,
                  norm_cfg=None,
-                 activation=None,
+                 conv_cfg=None,
+                 act_cfg=None,
                  order=('conv', 'norm', 'act'),
                  upsample_cfg=dict(
                      type='carafe',
@@ -52,8 +53,8 @@ class FPN_CARAFE(nn.Module):
         self.out_channels = out_channels
         self.num_ins = len(in_channels)
         self.num_outs = num_outs
-        self.activation = activation
         self.norm_cfg = norm_cfg
+        self.act_cfg = act_cfg
         self.with_bias = norm_cfg is None
         self.upsample_cfg = upsample_cfg.copy()
         self.upsample = self.upsample_cfg.get('type')
@@ -92,8 +93,9 @@ class FPN_CARAFE(nn.Module):
                 out_channels,
                 1,
                 norm_cfg=norm_cfg,
+                conv_cfg=conv_cfg,
                 bias=self.with_bias,
-                activation=activation,
+                act_cfg=act_cfg,
                 inplace=False,
                 order=self.order)
             fpn_conv = ConvModule(
@@ -102,8 +104,9 @@ class FPN_CARAFE(nn.Module):
                 3,
                 padding=1,
                 norm_cfg=self.norm_cfg,
+                conv_cfg=self.conv_cfg,
                 bias=self.with_bias,
-                activation=activation,
+                act_cfg=act_cfg,
                 inplace=False,
                 order=self.order)
             if i != self.backbone_end_level - 1:
@@ -152,8 +155,9 @@ class FPN_CARAFE(nn.Module):
                     stride=2,
                     padding=1,
                     norm_cfg=norm_cfg,
+                    conv_cfg=conv_cfg,
                     bias=self.with_bias,
-                    activation=self.activation,
+                    act_cfg=act_cfg,
                     inplace=False,
                     order=self.order)
                 if self.upsample == 'deconv':
@@ -191,8 +195,9 @@ class FPN_CARAFE(nn.Module):
                     3,
                     padding=1,
                     norm_cfg=self.norm_cfg,
+                    conv_cfg=self.conv_cfg,
                     bias=self.with_bias,
-                    activation=activation,
+                    act_cfg=act_cfg,
                     inplace=False,
                     order=self.order)
                 self.upsample_modules.append(upsample_module)

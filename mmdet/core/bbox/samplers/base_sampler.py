@@ -75,6 +75,17 @@ class BaseSampler(metaclass=ABCMeta):
             assign_result.add_gt_(gt_labels)
             gt_ones = bboxes.new_ones(gt_bboxes.shape[0], dtype=torch.uint8)
             gt_flags = torch.cat([gt_ones, gt_flags])
+        if not self.add_gt_as_proposals and len(gt_bboxes) > 0 and gt_labels is not None:
+
+            perm = torch.randperm(gt_bboxes.size(0))
+
+            gt_bboxes_1=gt_bboxes[perm[0]][None,:]
+            gt_labels_1=gt_labels[perm[0]][None]
+            bboxes = torch.cat([gt_bboxes_1, bboxes], dim=0)
+            assign_result.add_gt_(gt_labels_1)
+            gt_ones = bboxes.new_ones(gt_bboxes_1.shape[0], dtype=torch.uint8)
+            gt_flags = torch.cat([gt_ones, gt_flags])
+
 
         num_expected_pos = int(self.num * self.pos_fraction)
         pos_inds = self.pos_sampler._sample_pos(
@@ -92,7 +103,6 @@ class BaseSampler(metaclass=ABCMeta):
         neg_inds = self.neg_sampler._sample_neg(
             assign_result, num_expected_neg, bboxes=bboxes, **kwargs)
         neg_inds = neg_inds.unique()
-
         sampling_result = SamplingResult(pos_inds, neg_inds, bboxes, gt_bboxes,
                                          assign_result, gt_flags)
         return sampling_result

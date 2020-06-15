@@ -45,6 +45,7 @@ class TwoStageDetector(BaseDetector, RPNTestMixin, BBoxTestMixin,
             self.bbox_roi_extractor = builder.build_roi_extractor(
                 bbox_roi_extractor)
             self.bbox_head = builder.build_head(bbox_head)
+            self.use_TSD = 'TSD' in bbox_head['type']
 
         if mask_head is not None:
             if mask_roi_extractor is not None:
@@ -106,7 +107,7 @@ class TwoStageDetector(BaseDetector, RPNTestMixin, BBoxTestMixin,
         if self.with_rpn:
             rpn_outs = self.rpn_head(x)
             outs = outs + (rpn_outs, )
-        proposals = torch.randn(1000, 4).cuda()
+        proposals = torch.randn(1000, 4).to(device=img.device)
         # bbox head
         rois = bbox2roi([proposals])
         if self.with_bbox:
@@ -129,7 +130,7 @@ class TwoStageDetector(BaseDetector, RPNTestMixin, BBoxTestMixin,
 
     def forward_train(self,
                       img,
-                      img_meta,
+                      img_metas,
                       gt_bboxes,
                       gt_labels,
                       gt_bboxes_ignore=None,
@@ -140,8 +141,8 @@ class TwoStageDetector(BaseDetector, RPNTestMixin, BBoxTestMixin,
             img (Tensor): of shape (N, C, H, W) encoding input images.
                 Typically these should be mean centered and std scaled.
 
-            img_meta (list[dict]): list of image info dict where each dict has:
-                'img_shape', 'scale_factor', 'flip', and may also contain
+            img_metas (list[dict]): list of image info dict where each dict
+                has: 'img_shape', 'scale_factor', 'flip', and may also contain
                 'filename', 'ori_shape', 'pad_shape', and 'img_norm_cfg'.
                 For details on the values of these keys see
                 `mmdet/datasets/pipelines/formatting.py:Collect`.
@@ -170,7 +171,7 @@ class TwoStageDetector(BaseDetector, RPNTestMixin, BBoxTestMixin,
         # RPN forward and loss
         if self.with_rpn:
             rpn_outs = self.rpn_head(x)
-            rpn_loss_inputs = rpn_outs + (gt_bboxes, img_meta,
+            rpn_loss_inputs = rpn_outs + (gt_bboxes, img_metas,
                                           self.train_cfg.rpn)
             rpn_losses = self.rpn_head.loss(
                 *rpn_loss_inputs, gt_bboxes_ignore=gt_bboxes_ignore)
@@ -178,7 +179,7 @@ class TwoStageDetector(BaseDetector, RPNTestMixin, BBoxTestMixin,
 
             proposal_cfg = self.train_cfg.get('rpn_proposal',
                                               self.test_cfg.rpn)
-            proposal_inputs = rpn_outs + (img_meta, proposal_cfg)
+            proposal_inputs = rpn_outs + (img_metas, proposal_cfg)
             proposal_list = self.rpn_head.get_bboxes(*proposal_inputs)
         else:
             proposal_list = proposals
@@ -213,14 +214,26 @@ class TwoStageDetector(BaseDetector, RPNTestMixin, BBoxTestMixin,
                 x[:self.bbox_roi_extractor.num_inputs], rois)
             if self.with_shared_head:
                 bbox_feats = self.shared_head(bbox_feats)
-            cls_score, bbox_pred = self.bbox_head(bbox_feats)
+            if self.use_TSD:
+                cls_score, bbox_pred, TSD_cls_score, TSD_bbox_pred, delta_c, delta_r = self.bbox_head(bbox_feats, x[:self.bbox_roi_extractor.num_inputs], rois)
 
-            bbox_targets = self.bbox_head.get_target(sampling_results,
-                                                     gt_bboxes, gt_labels,
-                                                     self.train_cfg.rcnn)
-            loss_bbox = self.bbox_head.loss(cls_score, bbox_pred,
-                                            *bbox_targets)
-            losses.update(loss_bbox)
+                bbox_targets = self.bbox_head.get_target(rois, sampling_results,
+                                                         gt_bboxes, gt_labels, delta_c, delta_r, cls_score, bbox_pred, TSD_cls_score, TSD_bbox_pred,
+                                                         self.train_cfg.rcnn, img_metas)
+
+                loss_bbox = self.bbox_head.loss(cls_score, bbox_pred, TSD_cls_score, TSD_bbox_pred,
+                                                *bbox_targets)
+                losses.update(loss_bbox)
+
+            else:
+                cls_score, bbox_pred = self.bbox_head(bbox_feats)
+
+                bbox_targets = self.bbox_head.get_target(sampling_results,
+                                                         gt_bboxes, gt_labels,
+                                                         self.train_cfg.rcnn)
+                loss_bbox = self.bbox_head.loss(cls_score, bbox_pred,
+                                                *bbox_targets)
+                losses.update(loss_bbox)
 
         # mask head forward and loss
         if self.with_mask:
@@ -292,20 +305,59 @@ class TwoStageDetector(BaseDetector, RPNTestMixin, BBoxTestMixin,
                 mask_test_cfg=self.test_cfg.get('mask'))
             return bbox_results, segm_results
 
-    def simple_test(self, img, img_meta, proposals=None, rescale=False):
+    def tsd_simple_test_bboxes(self,
+                           x,
+                           img_metas,
+                           proposals,
+                           rcnn_test_cfg,
+                           rescale=False):
+        """Test only det bboxes without augmentation."""
+        rois = bbox2roi(proposals)
+        roi_feats = self.bbox_roi_extractor(
+            x[:len(self.bbox_roi_extractor.featmap_strides)], rois)
+        if self.with_shared_head:
+            roi_feats = self.shared_head(roi_feats)
+        cls_score, bbox_pred, TSD_cls_score, TSD_bbox_pred, delta_c, delta_r = self.bbox_head(roi_feats, x[:self.bbox_roi_extractor.num_inputs], rois)
+        img_shape = img_metas[0]['img_shape']
+        scale_factor = img_metas[0]['scale_factor']
+
+        w = rois[:,3]-rois[:,1]+1
+        h = rois[:,4]-rois[:,2]+1
+        scale = 0.1
+        rois_r = rois.new_zeros(rois.shape[0],rois.shape[1])
+        rois_r[:,0] = rois[:,0]
+        rois_r[:,1] = rois[:,1]+delta_r[:,0]*scale*w
+        rois_r[:,2] = rois[:,2]+delta_r[:,1]*scale*h
+        rois_r[:,3] = rois[:,3]+delta_r[:,0]*scale*w
+        rois_r[:,4] = rois[:,4]+delta_r[:,1]*scale*h
+
+        det_bboxes, det_labels = self.bbox_head.get_det_bboxes(
+            rois_r,
+            TSD_cls_score,
+            TSD_bbox_pred,
+            img_shape,
+            scale_factor,
+            rescale=rescale,
+            cfg=rcnn_test_cfg)
+        return det_bboxes, det_labels
+
+    def simple_test(self, img, img_metas, proposals=None, rescale=False):
         """Test without augmentation."""
         assert self.with_bbox, 'Bbox head must be implemented.'
 
         x = self.extract_feat(img)
 
         if proposals is None:
-            proposal_list = self.simple_test_rpn(x, img_meta,
+            proposal_list = self.simple_test_rpn(x, img_metas,
                                                  self.test_cfg.rpn)
         else:
             proposal_list = proposals
-
-        det_bboxes, det_labels = self.simple_test_bboxes(
-            x, img_meta, proposal_list, self.test_cfg.rcnn, rescale=rescale)
+        if self.use_TSD:
+            det_bboxes, det_labels = self.tsd_simple_test_bboxes(
+                x, img_metas, proposal_list, self.test_cfg.rcnn, rescale=rescale)
+        else:
+            det_bboxes, det_labels = self.simple_test_bboxes(
+                x, img_metas, proposal_list, self.test_cfg.rcnn, rescale=rescale)
         bbox_results = bbox2result(det_bboxes, det_labels,
                                    self.bbox_head.num_classes)
 
@@ -313,7 +365,7 @@ class TwoStageDetector(BaseDetector, RPNTestMixin, BBoxTestMixin,
             return bbox_results
         else:
             segm_results = self.simple_test_mask(
-                x, img_meta, det_bboxes, det_labels, rescale=rescale)
+                x, img_metas, det_bboxes, det_labels, rescale=rescale)
             return bbox_results, segm_results
 
     def aug_test(self, imgs, img_metas, rescale=False):

@@ -90,7 +90,6 @@ class SingleRoIExtractor(nn.Module):
     def forward(self, feats, rois, roi_scale_factor=None):
         if len(feats) == 1:
             return self.roi_layers[0](feats[0], rois)
-
         out_size = self.roi_layers[0].out_size
         num_levels = len(feats)
         target_lvls = self.map_roi_levels(rois, num_levels)

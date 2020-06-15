@@ -19,6 +19,8 @@ lib64/
 parts/
 sdist/
 var/
+exp/
+mmcv/
 wheels/
 *.egg-info/
 .installed.cfg
@@ -107,6 +109,7 @@ mmdet/version.py
 data
 .vscode
 .idea
+.DS_Store
 
 # custom
 *.pkl
