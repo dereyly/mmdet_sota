@@ -451,9 +451,6 @@ class GuidedAnchorHead(AnchorHead):
         # get anchor targets
         sampling = False if self.cls_focal_loss else True
         label_channels = self.cls_out_channels if self.use_sigmoid_cls else 1
-        # get classification and bbox regression losses
-        cfg['ga_sampler']['pos_fraction'] = 0.5  # 0.55
-        cfg['sampler']['pos_fraction'] = 0.5  # 0.55
         cls_reg_targets = anchor_target(
             guided_anchors_list,
             inside_flag_list,
@@ -507,83 +504,7 @@ class GuidedAnchorHead(AnchorHead):
                 anchor_weights_list[i],
                 anchor_total_num=anchor_total_num)
             losses_shape.append(loss_shape)
-        if 1:
-            # get sampled approxes
-            approxs_list, inside_flag_list = self.get_sampled_approxs(
-                featmap_sizes, img_metas, cfg, device=device)
-            # get squares and guided anchors
-            squares_list, guided_anchors_list, _ = self.get_anchors(
-                featmap_sizes, shape_preds, loc_preds, img_metas, device=device)
 
-            # get shape targets
-            sampling = False if not hasattr(cfg, 'ga_sampler') else True
-            shape_targets = ga_shape_target(
-                approxs_list,
-                inside_flag_list,
-                squares_list,
-                gt_bboxes,
-                img_metas,
-                self.approxs_per_octave,
-                cfg,
-                sampling=sampling)
-            if shape_targets is None:
-                return None
-            (bbox_anchors_list, bbox_gts_list, anchor_weights_list, anchor_fg_num,
-             anchor_bg_num) = shape_targets
-            anchor_total_num = (
-                anchor_fg_num if not sampling else anchor_fg_num + anchor_bg_num)
-
-            # get anchor targets
-            sampling = False if self.cls_focal_loss else True
-            label_channels = self.cls_out_channels if self.use_sigmoid_cls else 1
-            lvls = len(guided_anchors_list)
-            bboxes_lst = [[] for k in range(lvls)]
-            for z in range(lvls):
-                for k in range(len(guided_anchors_list[z])):
-                    bbox_pred = bbox_preds[k][z].permute(1, 2, 0).reshape(-1, 4)
-                    a = guided_anchors_list[z][k]
-                    # print(a.shape,bbox_pred.shape)
-                    bboxes = delta2bbox(guided_anchors_list[z][k], bbox_pred, self.target_means,
-                                        self.target_stds)
-                    bboxes_lst[z].append(bboxes.clone())
-                    zz = 0
-            # label_channels = self.cls_out_channels if self.use_sigmoid_cls else 1
-            # label_channels = self.cls_out_channels if self.use_sigmoid_cls else 1
-            cfg['ga_sampler']['pos_fraction'] = 0.55  # 0.55
-            cfg['sampler']['pos_fraction'] = 0.6  # 0.55
-            cls_reg_targets = anchor_target(
-                guided_anchors_list,
-                inside_flag_list,
-                gt_bboxes,
-                img_metas,
-                self.target_means,
-                self.target_stds,
-                cfg,
-                gt_bboxes_ignore_list=gt_bboxes_ignore,
-                gt_labels_list=gt_labels,
-                label_channels=label_channels,
-                sampling=sampling)
-            if cls_reg_targets is None:
-                return None
-            (labels_list, label_weights_list, bbox_targets_list, bbox_weights_list,
-             num_total_pos, num_total_neg) = cls_reg_targets
-            num_total_samples = (
-                num_total_pos if self.cls_focal_loss else num_total_pos +
-                                                          num_total_neg)
-            # get classification and bbox regression losses
-            losses_cls2, losses_bbox2 = multi_apply(
-                self.loss_single,
-                cls_scores,
-                bbox_preds,
-                labels_list,
-                label_weights_list,
-                bbox_targets_list,
-                bbox_weights_list,
-                num_total_samples=num_total_samples,
-                cfg=cfg)
-            zz=0
-            for k in range(lvls):
-                losses_cls[k] = losses_cls[k] / 2 + losses_cls2[k] / 2
         return dict(
             loss_cls=losses_cls,
             loss_bbox=losses_bbox,

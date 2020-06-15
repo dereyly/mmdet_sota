@@ -1,10 +1,15 @@
 # TSD
 
-**News**: We reimplement the TSD algorithm based on the MMDetection [framework](https://github.com/open-mmlab/mmdetection).
+**News**:
+2020.6.9: We add supports for Mask RCNN and Cascade RCNN. The pretrained models are also released via GoogleDrive.
 
-Paper: 
+2020.5.8: We add supports for fp16 training with TSD and update the performance on X101_64x4d backbone.
 
-  TSD (https://arxiv.org/abs/2003.07540)
+2020.4.29: We reimplement the TSD algorithm based on the MMDetection [framework](https://github.com/open-mmlab/mmdetection).
+
+Paper:
+
+  Revisiting the Sibling Head in Object Detector (CVPR 2020) (https://arxiv.org/abs/2003.07540)
 
   1st place solutions for openimage 2019 (https://arxiv.org/abs/2003.07557)
 

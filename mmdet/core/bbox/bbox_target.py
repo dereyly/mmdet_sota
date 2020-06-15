@@ -182,7 +182,8 @@ def bbox_target_single_tsd(pos_bboxes,
     rois_r[:,4] = rois[:,4]+delta_r[:,1]*scale*h
     TSD_pos_rois = rois_r[:num_pos]
     pos_rois = rois[:num_pos]
-
+    pc_cls_loss = rois.new_zeros(1)
+    pc_loc_loss = rois.new_zeros(1)
     if num_pos > 0:
         labels[:num_pos] = pos_gt_labels
         TSD_labels[:num_pos] = pos_gt_labels
@@ -202,7 +203,7 @@ def bbox_target_single_tsd(pos_bboxes,
         # 1. compute the PC for classification
         cls_score_soft = F.softmax(cls_score_,dim=1)
         TSD_cls_score_soft = F.softmax(TSD_cls_score_,dim=1)
-        cls_pc_margin = torch.tensor(cls_pc_margin).to(labels.device)
+        cls_pc_margin = torch.tensor(cls_pc_margin).to(labels.device).to(dtype=cls_score_soft.dtype)
         cls_pc_margin = torch.min(1-cls_score_soft[np.arange(len(TSD_labels)),labels],cls_pc_margin).detach()
         pc_cls_loss = F.relu(-(TSD_cls_score_soft[np.arange(len(TSD_labels)),TSD_labels] - cls_score_soft[np.arange(len(TSD_labels)),labels].detach() - cls_pc_margin))
 
@@ -216,10 +217,10 @@ def bbox_target_single_tsd(pos_bboxes,
 
         ious, gious = iou_overlaps(sibling_head_bboxes, pos_gt_bboxes)
         TSD_ious, TSD_gious = iou_overlaps(TSD_head_bboxes, pos_gt_bboxes)
-        loc_pc_margin = torch.tensor(loc_pc_margin).to(ious.device)
+        loc_pc_margin = torch.tensor(loc_pc_margin).to(ious.device).to(dtype=ious.dtype)
         loc_pc_margin = torch.min(1-ious.detach(),loc_pc_margin).detach()
         pc_loc_loss = F.relu(-(TSD_ious - ious.detach() - loc_pc_margin))
-        
+
     if num_neg > 0:
         label_weights[-num_neg:] = 1.
         TSD_label_weights[-num_neg:] = 1.
