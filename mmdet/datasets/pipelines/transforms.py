@@ -7,6 +7,11 @@ from numpy import random
 from mmdet.core import PolygonMasks
 from mmdet.core.evaluation.bbox_overlaps import bbox_overlaps
 from ..builder import PIPELINES
+try:
+    import bbaug
+    from bbaug import policies
+except ImportError:
+    use_bbaug = None
 
 try:
     from imagecorruptions import corrupt
@@ -950,6 +955,9 @@ class BBaug():
         pass
         
     def __call__(self, results):
+        if use_bbaug is None:
+            raise RuntimeError('BBaug is not installed')
+        
         policy = policy_container.select_random_policy()
         img_aug, bbs_aug = policy_container.apply_augmentation(policy, results['img'], results['gt_bboxes'], results['gt_labels'])
         
