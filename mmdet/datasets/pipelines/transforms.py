@@ -7,11 +7,16 @@ from numpy import random
 from mmdet.core import PolygonMasks
 from mmdet.core.evaluation.bbox_overlaps import bbox_overlaps
 from ..builder import PIPELINES
+
 try:
     import bbaug
     from bbaug import policies
+    # This stays here for now. If moved inside class it throws this error:
+    # Can't pickle <class 'bbaug.policies.policies.policy'>: attribute lookup policy on bbaug.policies.policies failed
+    # Not sure how to avoid for now
+    policy_container = policies.PolicyContainer(policies.policies_v3())
 except ImportError:
-    use_bbaug = None
+    bbaug = None
 
 try:
     from imagecorruptions import corrupt
@@ -944,18 +949,13 @@ class Albu(object):
         repr_str = self.__class__.__name__ + f'(transforms={self.transforms})'
         return repr_str
 
-# This stays here for now. If moved inside class it throws this error:
-# Can't pickle <class 'bbaug.policies.policies.policy'>: attribute lookup policy on bbaug.policies.policies failed
-# Not sure how to avoid for now
-policy_container = policies.PolicyContainer(policies.policies_v3())
-
 @PIPELINES.register_module()
 class BBaug():
     def __init__(self):
         pass
         
     def __call__(self, results):
-        if use_bbaug is None:
+        if bbaug is None:
             raise RuntimeError('BBaug is not installed')
         
         policy = policy_container.select_random_policy()
