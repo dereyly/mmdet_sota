@@ -958,13 +958,15 @@ class BBaug():
         if bbaug is None:
             raise RuntimeError('BBaug is not installed')
         
-        policy = policy_container.select_random_policy()
-        img_aug, bbs_aug = policy_container.apply_augmentation(policy, results['img'], results['gt_bboxes'], results['gt_labels'])
-        
-        results['img'] = img_aug.astype('uint8')
-        results['gt_labels'] = bbs_aug[:, 0].astype('int64')
-        results['gt_bboxes'] = bbs_aug[:, 1:].astype('float32')
-        
+        if results['gt_labels'].size > 0:
+            policy = policy_container.select_random_policy()
+            img_aug, bbs_aug = policy_container.apply_augmentation(policy, results['img'], results['gt_bboxes'], results['gt_labels'])
+            
+            if bbs_aug.size > 0:
+                results['img'] = img_aug.astype('uint8')
+                results['gt_labels'] = bbs_aug[:, 0].astype('int64')
+                results['gt_bboxes'] = bbs_aug[:, 1:].astype('float32')
+                
         return results
         
     def __repr__(self):
