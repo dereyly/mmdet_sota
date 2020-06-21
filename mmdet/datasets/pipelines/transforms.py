@@ -938,3 +938,27 @@ class Albu(object):
     def __repr__(self):
         repr_str = self.__class__.__name__ + f'(transforms={self.transforms})'
         return repr_str
+
+# This stays here for now. If moved inside class it throws this error:
+# Can't pickle <class 'bbaug.policies.policies.policy'>: attribute lookup policy on bbaug.policies.policies failed
+# Not sure how to avoid for now
+policy_container = policies.PolicyContainer(policies.policies_v3())
+
+@PIPELINES.register_module()
+class BBaug():
+    def __init__(self):
+        pass
+        
+    def __call__(self, results):
+        policy = policy_container.select_random_policy()
+        img_aug, bbs_aug = policy_container.apply_augmentation(policy, results['img'], results['gt_bboxes'], results['gt_labels'])
+        
+        results['img'] = img_aug.astype('uint8')
+        results['gt_labels'] = bbs_aug[:, 0].astype('int64')
+        results['gt_bboxes'] = bbs_aug[:, 1:].astype('float32')
+        
+        return results
+        
+    def __repr__(self):
+        repr_str = self.__class__.__name__
+        return repr_str
