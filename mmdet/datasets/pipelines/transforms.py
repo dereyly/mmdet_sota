@@ -7,14 +7,11 @@ from numpy import random
 from mmdet.core import PolygonMasks
 from mmdet.core.evaluation.bbox_overlaps import bbox_overlaps
 from ..builder import PIPELINES
+from .compose import Compose as MMCompose
 
 try:
     import bbaug
     from bbaug import policies
-    # This stays here for now. If moved inside class it throws this error:
-    # Can't pickle <class 'bbaug.policies.policies.policy'>: attribute lookup policy on bbaug.policies.policies failed
-    # Not sure how to avoid for now
-    policy_container = policies.PolicyContainer(policies.policies_v3())
 except ImportError:
     bbaug = None
 
@@ -951,14 +948,24 @@ class Albu(object):
 
 @PIPELINES.register_module()
 class BBaug():
-    def __init__(self):
-        pass
+    def __init__(self, policy_ver = 3):
+        if not bbaug:
+            raise RuntimeError('BBaug is not installed')
+        assert policy_ver in [0, 1, 2, 3], 'Policy should be an integer in the range 0..3'
+        self.policy = policy_ver
         
     def __call__(self, results):
-        if bbaug is None:
-            raise RuntimeError('BBaug is not installed')
         
         if results['gt_labels'].size > 0:
+            if self.policy == 0:
+                policy_container = policies.PolicyContainer(policies.policies_v0())
+            elif self.policy == 1:
+                policy_container = policies.PolicyContainer(policies.policies_v1())
+            elif self.policy == 2:
+                policy_container = policies.PolicyContainer(policies.policies_v2())
+            elif self.policy == 3:
+                policy_container = policies.PolicyContainer(policies.policies_v3())
+                
             policy = policy_container.select_random_policy()
             img_aug, bbs_aug = policy_container.apply_augmentation(policy, results['img'], results['gt_bboxes'], results['gt_labels'])
             
