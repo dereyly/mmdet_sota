@@ -7,6 +7,9 @@ from numpy import random
 from mmdet.core import PolygonMasks
 from mmdet.core.evaluation.bbox_overlaps import bbox_overlaps
 from ..builder import PIPELINES
+from .compose import Compose as MMCompose
+
+from .compose import Compose as MMDCompose
 
 try:
     import bbaug
@@ -945,6 +948,7 @@ class Albu(object):
         repr_str = self.__class__.__name__ + f'(transforms={self.transforms})'
         return repr_str
 
+
 @PIPELINES.register_module()
 class BBaug():
     def __init__(self, policy_ver = 3):
@@ -975,6 +979,82 @@ class BBaug():
                 
         return results
         
+    def __repr__(self):
+        repr_str = self.__class__.__name__
+        return repr_str
+
+
+@PIPELINES.register_module()
+class MosaicV1():
+    def __init__(self, buffer_add_probability = 0.9, max_buffer_size = 4, crop_probability = 0.5):
+        assert max_buffer_size >= 4, "Buffer size for mosaic should be at least 4!"
+        assert buffer_add_probability > 0, "Probability to add into buffer should be more than zero!"
+        
+        self.max_buffer_size = max_buffer_size
+        self.buffer = []
+        self.buffer_add_probability = buffer_add_probability
+        self.crop_probability = crop_probability
+    
+    def mosaic(self, results):
+        # take four images
+        a = self.buffer.pop()
+        b = self.buffer.pop()
+        c = self.buffer.pop()
+        d = self.buffer.pop()
+        
+        #get min shape
+        min_h = min(a['img'].shape[0], b['img'].shape[0], c['img'].shape[0], d['img'].shape[0])
+        min_w = min(a['img'].shape[1], b['img'].shape[1], c['img'].shape[1], d['img'].shape[1])
+        
+        # cropping pipe
+        crop = MMDCompose([dict(type='RandomCrop', crop_size = (min_h, min_w))])
+        
+        # crop
+        a, b, c, d = crop(a), crop(b), crop(c), crop(d)
+        
+        # offset bboxes in stacked image
+        def offset_bbox(res_dict, x_offset, y_offset, keys = ['gt_bboxes', 'gt_bboxes_ignore']):
+            for key in keys:
+                if key in res_dict and res_dict[key].size > 0:
+                    res_dict[key][:, 0::2] += x_offset
+                    res_dict[key][:, 1::2] += y_offset
+            return res_dict
+        
+        b = offset_bbox(b, min_w, 0)
+        c = offset_bbox(c, 0, min_h)
+        d = offset_bbox(d, min_w, min_h)
+        
+        # collect all the data into result
+        top = np.concatenate([a['img'], b['img']], axis = 1)
+        bottom = np.concatenate([c['img'], d['img']], axis = 1)
+        results['img'] = np.concatenate([top, bottom], axis = 0)
+        
+        for key in ['gt_labels', 'gt_bboxes', 'gt_labels_ignore', 'gt_bboxes_ignore']:
+            if key in results:
+                results[key] = np.concatenate([a[key], b[key], c[key], d[key]], axis = 0)
+        
+        results['img_shape'] = (min_h * 2, min_w * 2)
+        
+        # randomly crop or resize final image
+        if random.random() < self.crop_probability:
+            results = crop(results)
+        else:
+            resize = MMDCompose([dict(type='Resize', img_scale = (min_h, min_w))])
+            results = resize(results)
+        
+        return results
+        
+    def __call__(self, results):
+        # adding copies of data into buffer
+        if random.random() < self.buffer_add_probability and len(self.buffer) < self.max_buffer_size:
+            self.buffer.append(results.copy())
+            random.shuffle(self.buffer)
+        
+        # if the buffer is full get mosaic
+        if len(self.buffer) == self.max_buffer_size:
+            return self.mosaic(results)
+        return results
+    
     def __repr__(self):
         repr_str = self.__class__.__name__
         return repr_str
