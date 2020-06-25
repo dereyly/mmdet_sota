@@ -1010,6 +1010,10 @@ class MosaicV1():
         # crop
         a, b, c, d = crop(a), crop(b), crop(c), crop(d)
         
+        # check if croppping returns None => see above in the definition of RandomCrop
+        if not a or not b or not c or not d:
+            return results
+        
         # offset bboxes in stacked image
         def offset_bbox(res_dict, x_offset, y_offset, keys = ['gt_bboxes', 'gt_bboxes_ignore']):
             for key in keys:
@@ -1026,12 +1030,11 @@ class MosaicV1():
         top = np.concatenate([a['img'], b['img']], axis = 1)
         bottom = np.concatenate([c['img'], d['img']], axis = 1)
         results['img'] = np.concatenate([top, bottom], axis = 0)
+        results['img_shape'] = (min_h * 2, min_w * 2)
         
         for key in ['gt_labels', 'gt_bboxes', 'gt_labels_ignore', 'gt_bboxes_ignore']:
             if key in results:
                 results[key] = np.concatenate([a[key], b[key], c[key], d[key]], axis = 0)
-        
-        results['img_shape'] = (min_h * 2, min_w * 2)
         
         # randomly crop or resize final image
         if random.random() < self.crop_probability:
