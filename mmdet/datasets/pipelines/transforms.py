@@ -9,6 +9,9 @@ from mmdet.core.evaluation.bbox_overlaps import bbox_overlaps
 from ..builder import PIPELINES
 from .compose import Compose as MMDCompose
 
+#from matplotlib import pyplot as plt
+#import cv2
+
 try:
     import bbaug
     from bbaug import policies
@@ -439,6 +442,94 @@ class RandomCrop(object):
     def __repr__(self):
         return self.__class__.__name__ + f'(crop_size={self.crop_size})'
 
+@PIPELINES.register_module()
+class Crop(object):
+    """Crop the image & bboxes & masks using final size and offsets
+
+    Args:
+        crop_size (tuple): Expected size after cropping, (h, w).
+
+    Notes:
+        - If the image is smaller than the crop size, return the original image
+        - The keys for bboxes, labels and masks must be aligned. That is,
+          `gt_bboxes` corresponds to `gt_labels` and `gt_masks`, and
+          `gt_bboxes_ignore` corresponds to `gt_labels_ignore` and
+          `gt_masks_ignore`.
+        - If there are gt bboxes in an image and the cropping area does not
+          have intersection with any gt bbox, this image is skipped.
+    """
+
+    def __init__(self, crop_size, crop_offset):
+        assert crop_size[0] > 0 and crop_size[1] > 0
+        self.crop_size = crop_size
+        self.offsets = crop_offset
+        # The key correspondence from bboxes to labels and masks.
+        self.bbox2label = {
+            'gt_bboxes': 'gt_labels',
+            'gt_bboxes_ignore': 'gt_labels_ignore'
+        }
+        self.bbox2mask = {
+            'gt_bboxes': 'gt_masks',
+            'gt_bboxes_ignore': 'gt_masks_ignore'
+        }
+
+    def __call__(self, results):
+        for key in results.get('img_fields', ['img']):
+            img = results[key]
+            margin_h = max(img.shape[0] - self.crop_size[0], 0)
+            margin_w = max(img.shape[1] - self.crop_size[1], 0)
+            offset_h = self.offsets[0]
+            offset_w = self.offsets[1]
+            crop_y1, crop_y2 = offset_h, offset_h + self.crop_size[0]
+            crop_x1, crop_x2 = offset_w, offset_w + self.crop_size[1]
+
+            # crop the image
+            img = img[crop_y1:crop_y2, crop_x1:crop_x2, ...]
+            img_shape = img.shape
+            results[key] = img
+        results['img_shape'] = img_shape
+
+        valid_flag = False
+        # crop bboxes accordingly and clip to the image boundary
+        for key in results.get('bbox_fields', []):
+            # e.g. gt_bboxes and gt_bboxes_ignore
+            bbox_offset = np.array([offset_w, offset_h, offset_w, offset_h],
+                                   dtype=np.float32)
+            bboxes = results[key] - bbox_offset
+            bboxes[:, 0::2] = np.clip(bboxes[:, 0::2], 0, img_shape[1])
+            bboxes[:, 1::2] = np.clip(bboxes[:, 1::2], 0, img_shape[0])
+            valid_inds = (bboxes[:, 2] > bboxes[:, 0]) & (
+                bboxes[:, 3] > bboxes[:, 1])
+            # When there is no gt bbox, cropping is conducted.
+            # When the crop is valid, cropping is conducted.
+            if len(valid_inds) == 0 or valid_inds.any():
+                valid_flag = True
+            results[key] = bboxes[valid_inds, :]
+            # label fields. e.g. gt_labels and gt_labels_ignore
+            label_key = self.bbox2label.get(key)
+            if label_key in results:
+                results[label_key] = results[label_key][valid_inds]
+
+            # mask fields, e.g. gt_masks and gt_masks_ignore
+            mask_key = self.bbox2mask.get(key)
+            if mask_key in results:
+                results[mask_key] = results[mask_key][
+                    valid_inds.nonzero()[0]].crop(
+                        np.asarray([crop_x1, crop_y1, crop_x2, crop_y2]))
+
+        # if no gt bbox remains after cropping, just skip this image
+        # TODO: check whether we can keep the image regardless of the crop.
+        if 'bbox_fields' in results and not valid_flag:
+            return None
+
+        # crop semantic seg
+        for key in results.get('seg_fields', []):
+            results[key] = results[key][crop_y1:crop_y2, crop_x1:crop_x2]
+
+        return results
+
+    def __repr__(self):
+        return self.__class__.__name__ + f'(crop_size={self.crop_size})'
 
 @PIPELINES.register_module()
 class SegRescale(object):
@@ -1042,6 +1133,110 @@ class MosaicV1():
         else:
             resize = MMDCompose([dict(type='Resize', img_scale = (min_h, min_w))])
             results = resize(results)
+        
+        return results
+        
+    def __call__(self, results):
+        # adding copies of data into buffer
+        if random.random() < self.buffer_add_probability and len(self.buffer) < self.max_buffer_size:
+            self.buffer.append(results.copy())
+            random.shuffle(self.buffer)
+        
+        # if the buffer is full get mosaic
+        if len(self.buffer) == self.max_buffer_size:
+            return self.mosaic(results)
+        return results
+    
+    def __repr__(self):
+        repr_str = self.__class__.__name__
+        return repr_str
+        
+        
+@PIPELINES.register_module()
+class MosaicV2():
+    def __init__(self, buffer_add_probability = 0.9, max_buffer_size = 4):
+        assert max_buffer_size >= 4, "Buffer size for mosaic should be at least 4!"
+        assert buffer_add_probability > 0, "Probability to add into buffer should be more than zero!"
+        
+        self.max_buffer_size = max_buffer_size
+        self.buffer = []
+        self.buffer_add_probability = buffer_add_probability
+    
+    def mosaic(self, results):
+        # take four images
+        a = self.buffer.pop()
+        b = self.buffer.pop()
+        c = self.buffer.pop()
+        d = self.buffer.pop()
+        
+        #get min shape
+        min_h = min(a['img'].shape[0], b['img'].shape[0], c['img'].shape[0], d['img'].shape[0])
+        min_w = min(a['img'].shape[1], b['img'].shape[1], c['img'].shape[1], d['img'].shape[1])
+        
+        # cropping pipe
+        random_crop = MMDCompose([dict(type='RandomCrop', crop_size = (min_h, min_w))])
+        
+        # crop
+        a, b, c, d = random_crop(a), random_crop(b), random_crop(c), random_crop(d)
+        
+        # check if croppping returns None => see above in the definition of RandomCrop
+        if not a or not b or not c or not d:
+            return results
+        
+        #tmp = c['img']
+        #for i in range(c['gt_bboxes'].shape[0]):
+        #    tmp = cv2.rectangle(tmp, (c['gt_bboxes'][i][0], c['gt_bboxes'][i][1]), (c['gt_bboxes'][i][2], c['gt_bboxes'][i][3]), (0, 255, 0), 3) 
+        #plt.imshow(tmp)
+        #plt.show()
+        
+        
+        # generate random midpoint
+        min_offset = 0.2 # from YOLOv4-pytorch implementation
+        cut_x = random.randint(int(min_h * min_offset), int(min_h * (1 - min_offset)))
+        cut_y = random.randint(int(min_w * min_offset), int(min_w * (1 - min_offset)))
+        
+        # crop again to mosaic size - now it's not a random crop tho
+        # cropping pipe
+        crop = MMDCompose([dict(type='Crop', crop_size = (cut_x, cut_y), crop_offset = (0, 0))])
+        a = crop(a)
+        crop = MMDCompose([dict(type='Crop', crop_size = (cut_x, min_w - cut_y), crop_offset = (0, cut_y))])
+        b = crop(b)
+        crop = MMDCompose([dict(type='Crop', crop_size = (min_h - cut_x, cut_y), crop_offset = (cut_x, 0))])
+        c = crop(c)
+        crop = MMDCompose([dict(type='Crop', crop_size = (min_h - cut_x, min_w - cut_y), crop_offset = (cut_x, cut_y))])
+        d = crop(d)
+        
+        # check if croppping returns None again
+        if not a or not b or not c or not d:
+            return results
+        
+        # offset bboxes in stacked image
+        def offset_bbox(res_dict, x_offset, y_offset, keys = ['gt_bboxes', 'gt_bboxes_ignore']):
+            for key in keys:
+                if key in res_dict and res_dict[key].size > 0:
+                    res_dict[key][:, 0::2] += x_offset
+                    res_dict[key][:, 1::2] += y_offset
+            return res_dict
+        
+        b = offset_bbox(b, cut_y, 0)
+        c = offset_bbox(c, 0, cut_x)
+        d = offset_bbox(d, cut_y, cut_x)
+        
+        # collect all the data into result
+        top = np.concatenate([a['img'], b['img']], axis = 1)
+        bottom = np.concatenate([c['img'], d['img']], axis = 1)
+        results['img'] = np.concatenate([top, bottom], axis = 0)
+        results['img_shape'] = (min_h * 2, min_w * 2)
+        
+        for key in ['gt_labels', 'gt_bboxes', 'gt_labels_ignore', 'gt_bboxes_ignore']:
+            if key in results:
+                results[key] = np.concatenate([a[key], b[key], c[key], d[key]], axis = 0)
+        
+        #tmp = results['img']
+        #for i in range(results['gt_bboxes'].shape[0]):
+        #    tmp = cv2.rectangle(tmp, (results['gt_bboxes'][i][0], results['gt_bboxes'][i][1]), (results['gt_bboxes'][i][2], results['gt_bboxes'][i][3]), (0, 255, 0), 3)
+        #plt.imshow(tmp)
+        #plt.show()
         
         return results
         
